@@ -49,4 +49,21 @@ def apply_pca(data):
     reduced = pca.fit_transform(data_scaled)
     return reduced
 
+### 1. ** Linear Discriminant Analysis (LDA)**
+LDA is a supervised technique that reduces dimensionality while maximizing the separability between known categories (classes). LDA uses class labels to find the optimal projection that maximizes the distance between the means of the classes while minimizing the spread within each class.
+
+**Key Steps**:
+- Standardize the dataset.
+- Apply LDA, using the target class labels to guide the projection.
+- Visualize the resulting 2D data.
+
+```python
+def apply_lda(data, target):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    lda = LDA(n_components=2)
+    reduced = lda.fit_transform(data_scaled, target)
+    return reduced
+
+
 
