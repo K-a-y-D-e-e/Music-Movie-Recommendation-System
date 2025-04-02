@@ -1,4 +1,4 @@
-# Dimensionality Reduction Techniques in Python
+# Dimensionality Reduction Techniques
 
 ## Overview
 
