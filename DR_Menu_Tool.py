@@ -1,67 +1,51 @@
-# Enhanced Dimensionality Reduction Script
-
-# Import essential libraries
+# Importing the Required Libraries.
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE, MDS
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.metrics import accuracy_score
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.preprocessing import KBinsDiscretizer
 
 # Set Seaborn style for better visualization
 sns.set(style='whitegrid')
 
 # Dataset Description
-print("Dimensionality reduction helps visualize high-dimensional data and can also enhance model performance by reducing noise.")
-print("This script applies various dimensionality reduction techniques (PCA, LDA, t-SNE, SVD, MDS) on user-provided datasets.")
-
-# Data Sampling Function
-def sample_data(data, max_samples=10000):
-    """
-    Randomly samples data to reduce size for computational efficiency.
-    """
-    if len(data) > max_samples:
-        print(f"Dataset is large ({len(data)} entries). Sampling {max_samples} entries for efficiency.")
-        return data.sample(n=max_samples, random_state=42)
-    print("Dataset size is manageable. Using full data.")
-    return data
+def dataset_description(data):
+    print('Dataset Shape:', data.shape)
+    print('Column Information:')
+    print(data.info())
+    print('Summary Statistics:')
+    print(data.describe())
+    print('Missing Values:')
+    print(data.isnull().sum())
+    print('Data Types:')
+    print(data.dtypes)
+    print('Head of the Dataset:')
+    print(data.head())
 
 # Data Pre-processing
 def preprocess_data(data):
-    """
-    Preprocess the data by handling missing values and encoding categorical features.
-    """
-    data = data.dropna()  # Drop rows with any missing data
-    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()  # Select numeric columns
-    categorical_cols = data.select_dtypes(exclude=[np.number]).columns.tolist()  # Select categorical columns
-    
-    # One-hot encode categorical columns
+    # Drop rows with missing values before encoding
+    data = data.dropna()
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = data.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    # One-hot encode categorical columns, if any
     if categorical_cols:
-        encoder = OneHotEncoder(sparse=False, drop='first')
+        encoder = OneHotEncoder(sparse_output=False, drop='first', handle_unknown='ignore')
         encoded = pd.DataFrame(encoder.fit_transform(data[categorical_cols]), columns=encoder.get_feature_names_out(categorical_cols))
         data = pd.concat([data[numeric_cols], encoded], axis=1)
+
+    # Final check for missing values after encoding
+    data.dropna(inplace=True)
     return data
 
-# Exploratory Data Analysis (EDA)
-def eda(data):
-    """
-    Perform basic exploratory data analysis (EDA) to understand the dataset.
-    """
-    print("Basic Statistics:\n", data.describe())
-    print("Missing Values:\n", data.isnull().sum())
-    sns.pairplot(data.sample(min(100, len(data))), diag_kind='kde')
-    plt.show()
 
-# Dimensionality Reduction Methods
+# Apply PCA with 2 components
 def apply_pca(data):
-    """
-    Apply PCA to reduce dimensionality to 2 components and return the transformed data.
-    """
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data)
     pca = PCA(n_components=2)
@@ -69,130 +53,184 @@ def apply_pca(data):
     print("Explained Variance Ratio (PCA):", pca.explained_variance_ratio_)
     return reduced
 
-def apply_lda(data, target):
-    """
-    Apply Linear Discriminant Analysis (LDA) to reduce dimensionality to 2 components and return the transformed data.
-    """
+# Apply LDA
+def apply_lda(data, target_variable):
     scaler = StandardScaler()
-    data_scaled = scaler.fit_transform(data)
+    data_scaled = scaler.fit_transform(data.drop(columns=[target_variable]))
+    discretizer = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform')
+    data['rating_category'] = discretizer.fit_transform(data[[target_variable]])
     lda = LDA(n_components=2)
-    reduced = lda.fit_transform(data_scaled, target)
+    reduced = lda.fit_transform(data_scaled, data['rating_category'])
+    print("Explained Variance Ratio (LDA):", lda.explained_variance_ratio_)
     return reduced
 
-def apply_tsne(data):
-    """
-    Apply t-SNE to reduce dimensionality to 2 components and return the transformed data.
-    """
-    scaler = StandardScaler()
-    data_scaled = scaler.fit_transform(data)
-    tsne = TSNE(n_components=2, random_state=42)
-    reduced = tsne.fit_transform(data_scaled)
-    return reduced
-
+# Apply SVD with 2 components
 def apply_svd(data):
-    """
-    Apply SVD to reduce dimensionality to 2 components and return the transformed data.
-    """
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data)
     svd = TruncatedSVD(n_components=2)
     reduced = svd.fit_transform(data_scaled)
-
-    # Reconstruct the data using the SVD components
-    reconstructed_data = svd.inverse_transform(reduced)
-    
-    # Calculate reconstruction error
-    reconstruction_error = np.mean((data_scaled - reconstructed_data) ** 2)
-    print(f"Reconstruction Error (SVD): {reconstruction_error}")
-    
+    print("Explained Variance Ratio (SVD):", svd.explained_variance_ratio_)
     return reduced
 
-def apply_mds(data):
-    """
-    Apply MDS (Multidimensional Scaling) to reduce dimensionality to 2 components and return the transformed data.
-    """
+# Apply t-SNE
+def apply_tsne(data):
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data)
-    mds = MDS(n_components=2, random_state=42)
-    reduced = mds.fit_transform(data_scaled)
+    tsne = TSNE(n_components=2, perplexity=30, n_iter=1000)
+    reduced = tsne.fit_transform(data_scaled)
+    print("t-SNE reduction completed.")
     return reduced
 
-# Performance Evaluation
-def evaluate_performance(method, reduced_data, original_data, target=None):
-    """
-    Evaluate the performance of the dimensionality reduction method.
-    """
-    if method == 'pca':
-        # Print explained variance for PCA
-        pca = PCA(n_components=2)
-        pca.fit(original_data)
-        print("Explained Variance Ratio (PCA):", pca.explained_variance_ratio_)
-    elif method == 'svd':
-        # Compute reconstruction error for SVD
-        svd = TruncatedSVD(n_components=2)
-        svd.fit(original_data)
-        reconstructed_data = svd.inverse_transform(reduced_data)
-        reconstruction_error = np.mean((original_data - reconstructed_data) ** 2)
-        print(f"Reconstruction Error (SVD): {reconstruction_error}")
-    elif method == 'lda' and target is not None:
-        # Check classification accuracy for LDA
-        clf = LogisticRegression()
-        clf.fit(reduced_data, target)
-        accuracy = accuracy_score(target, clf.predict(reduced_data))
-        print(f"Classification Accuracy (LDA): {accuracy}")
-    elif method == 'tsne':
-        # Print perplexity for t-SNE
-        print(f"Perplexity used in t-SNE: {tsne.perplexity_}")
+# Apply MDS
+def apply_mds(data):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    mds = MDS(n_components=2)
+    reduced = mds.fit_transform(data_scaled)
+    print("MDS reduction completed.")
+    return reduced
 
-# Visualization
-def visualize_reduction(reduced_data, title):
-    """
-    Visualize the reduced data using a scatter plot.
-    """
+# Visualization function
+def visualize_reduction(reduced, title):
     plt.figure(figsize=(8, 6))
-    plt.scatter(reduced_data[:, 0], reduced_data[:, 1], alpha=0.6)
+    plt.scatter(reduced[:, 0], reduced[:, 1], alpha=0.6)
+    plt.title(title)
+    plt.show()
+    
+
+# Set Seaborn style for better visualization
+sns.set(style='whitegrid')
+
+# Dataset Description
+def dataset_description(data):
+    print('Dataset Shape:', data.shape)
+    print('Column Information:')
+    print(data.info())
+    print('Summary Statistics:')
+    print(data.describe())
+    print('Missing Values:')
+    print(data.isnull().sum())
+    print('Data Types:')
+    print(data.dtypes)
+    print('Head of the Dataset:')
+    print(data.head())
+
+'''
+# EDA
+def exploratory_data_analysis(data):
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(data.corr(), annot=True, cmap='coolwarm')
+    plt.title('Correlation Heatmap')
+    plt.show()
+    sns.pairplot(data, diag_kind='kde')
+    plt.show()
+'''
+
+# Data Pre-processing
+def preprocess_data(data):
+    # Drop rows with missing values before encoding
+    data = data.dropna()
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = data.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    # One-hot encode categorical columns, if any
+    if categorical_cols:
+        encoder = OneHotEncoder(sparse_output=False, drop='first', handle_unknown='ignore')
+        encoded = pd.DataFrame(encoder.fit_transform(data[categorical_cols]), columns=encoder.get_feature_names_out(categorical_cols))
+        data = pd.concat([data[numeric_cols], encoded], axis=1)
+
+    # Final check for missing values after encoding
+    data.dropna(inplace=True)
+    return data
+
+# Apply PCA with 2 components
+def apply_pca(data):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    pca = PCA(n_components=2)
+    reduced = pca.fit_transform(data_scaled)
+    print("Explained Variance Ratio (PCA):", pca.explained_variance_ratio_)
+    return reduced
+
+# Apply LDA
+def apply_lda(data, target_variable):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data.drop(columns=[target_variable]))
+    discretizer = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform')
+    data['rating_category'] = discretizer.fit_transform(data[[target_variable]])
+    lda = LDA(n_components=2)
+    reduced = lda.fit_transform(data_scaled, data['rating_category'])
+    print("Explained Variance Ratio (LDA):", lda.explained_variance_ratio_)
+    return reduced
+
+# Apply SVD with 2 components
+def apply_svd(data):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    svd = TruncatedSVD(n_components=2)
+    reduced = svd.fit_transform(data_scaled)
+    print("Explained Variance Ratio (SVD):", svd.explained_variance_ratio_)
+    return reduced
+
+# Apply t-SNE
+def apply_tsne(data):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    tsne = TSNE(n_components=2, perplexity=30, n_iter=1000)
+    reduced = tsne.fit_transform(data_scaled)
+    print("t-SNE reduction completed.")
+    return reduced
+
+# Apply MDS
+def apply_mds(data):
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data)
+    mds = MDS(n_components=2)
+    reduced = mds.fit_transform(data_scaled)
+    print("MDS reduction completed.")
+    return reduced
+
+# Visualization function
+def visualize_reduction(reduced, title):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(reduced[:, 0], reduced[:, 1], alpha=0.6)
     plt.title(title)
     plt.show()
 
-# Load and reduce data
-def Load_and_reduce():
+# Main execution function
+def main():
     try:
-        filename = input("Enter the file path: ")
-        method = input("Choose method (pca/lda/tsne/svd/mds): ")
+        filename = "/content/drive/MyDrive/final_dataset.csv"
         data = pd.read_csv(filename)
-        eda(data)
-        data = sample_data(data)
-        print("Available features in the dataset:", list(data.columns))
-        target_col = input("Enter the target column name (if applicable, else leave blank): ")
-        has_target = bool(target_col)
-        data = preprocess_data(data)
-        features = data.drop(columns=[target_col]) if has_target else data
-        target = data[target_col] if has_target else None
+        print("Dataset loaded.")
+        features = data[['year', 'duration', 'rating', 'votes', 'meta_score', 'budget', 'opening_weekend_gross', 'gross_worldwide', 'gross_us_canada']]
+        data = preprocess_data(features)
+        dataset_description(data)
 
-        if method == 'pca':
-            reduced = apply_pca(features)
-            visualize_reduction(reduced, 'PCA')
-            evaluate_performance('pca', reduced, features, target)
-        elif method == 'lda' and has_target:
-            reduced = apply_lda(features, target)
-            visualize_reduction(reduced, 'LDA')
-            evaluate_performance('lda', reduced, features, target)
-        elif method == 'tsne':
-            reduced = apply_tsne(features)
-            visualize_reduction(reduced, 't-SNE')
-            evaluate_performance('tsne', reduced, features)
-        elif method == 'svd':
-            reduced = apply_svd(features)
-            visualize_reduction(reduced, 'SVD')
-            evaluate_performance('svd', reduced, features)
-        elif method == 'mds':
-            reduced = apply_mds(features)
-            visualize_reduction(reduced, 'MDS')
-            evaluate_performance('mds', reduced, features)
-        else:
-            print("Invalid method or missing target.")
+        # PCA Visualization
+        reduced_pca = apply_pca(data)
+        visualize_reduction(reduced_pca, "PCA")
+
+        # LDA Visualization
+        reduced_lda = apply_lda(data, 'rating')
+        visualize_reduction(reduced_lda, "LDA")
+
+        # SVD Visualization
+        reduced_svd = apply_svd(data)
+        visualize_reduction(reduced_svd, "SVD")
+
+        # t-SNE Visualization
+        reduced_tsne = apply_tsne(data)
+        visualize_reduction(reduced_tsne, "t-SNE")
+
+        # MDS Visualization
+        reduced_mds = apply_mds(data)
+        visualize_reduction(reduced_mds, "MDS")
+
     except Exception as e:
         print(f"Error: {e}")
 
-# Run the tool
-Load_and_reduce()
+# Run the script
+if __name__ == "__main__":
+    main()
